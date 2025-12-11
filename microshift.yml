@@ -1,0 +1,42 @@
+- name: Execute command inside a Kubernetes pod selected by label
+  hosts: localhost
+  gather_facts: no
+  collections:
+    - kubernetes.core
+  vars:
+    namespace: "default" ## add namespace here
+    label_selector: "app=nginx" # add lable selector here 
+    container_name: ""          # optional — leave empty to use default container
+    exec_command: ["sh", "-c", "hostname"]  # command to run inside the container
+  tasks:
+    - name: Get pods matching label selector
+      kubernetes.core.k8s_info:
+        api_version: v1
+        kind: Pod
+        namespace: "{{ namespace }}"
+        label_selectors:
+          - "{{ label_selector }}"
+      register: pod_list
+
+    - name: Fail if no pods found
+      fail:
+        msg: "No pods found with label {{ label_selector }} in {{ namespace }}"
+      when: pod_list.resources | length == 0
+
+    - name: Select the first pod
+      set_fact:
+        target_pod: "{{ pod_list.resources[0].metadata.name }}"
+
+    - debug:
+        msg: "Selected pod: {{ target_pod }}"
+
+    - name: Exec command inside pod
+      kubernetes.core.k8s_exec:
+        namespace: "{{ namespace }}"
+        pod: "{{ target_pod }}"
+        container: "{{ container_name | default(omit) }}"
+        command: "{{ exec_command }}"
+      register: exec_output
+
+    - debug:
+        var: exec_output.stdout
