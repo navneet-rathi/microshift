@@ -1,5 +1,5 @@
 - name: Execute command inside a Kubernetes pod selected by label
-  hosts: localhost
+  hosts: all
   gather_facts: no
   collections:
     - kubernetes.core
