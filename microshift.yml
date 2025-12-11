@@ -46,7 +46,7 @@
         namespace: "{{ namespace }}"
         pod: "{{ target_pod }}"
         container: "{{ container_name | default(omit) }}"
-        command: "ifconfig"
+        command: "env"
       register: ifconfigexec_output
 
     - debug:
