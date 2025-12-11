@@ -7,7 +7,7 @@
     namespace: "default" ## add namespace here
     label_selector: "app=nginx" # add lable selector here 
     container_name: ""          # optional — leave empty to use default container
-    exec_command: [ "hostname"]  # command to run inside the container
+    exec_command: [ "ls", "-l"]  # command to run inside the container
   tasks:
     - name: Get pods matching label selector
       kubernetes.core.k8s_info:
