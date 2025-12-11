@@ -40,3 +40,14 @@
 
     - debug:
         var: exec_output.stdout
+
+    - name: Exec command inside pod ifcongig
+      kubernetes.core.k8s_exec:
+        namespace: "{{ namespace }}"
+        pod: "{{ target_pod }}"
+        container: "{{ container_name | default(omit) }}"
+        command: "ifconfig"
+      register: ifconfigexec_output
+
+    - debug:
+        var: ifconfigexec_output.stdout        

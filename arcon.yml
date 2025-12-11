@@ -1,0 +1,120 @@
+---
+- name: Get password from Arcon PAM
+  hosts: all
+  gather_facts: no
+
+  vars:
+    config_file: "/usr/share/ansible/plugins/lookup/config.json"
+    server_ip: "192.168.1.10"
+    service_type: "22"
+    username: "root"
+
+  tasks:
+
+    - name: Load Arcon configuration
+      include_vars:
+        file: "{{ config_file }}"
+        name: arcon
+
+    - name: Attempt token from HA
+      uri:
+        url: "{{ arcon.hostipHA }}/arconToken"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          username: "{{ arcon.username }}"
+          password: "{{ arcon.password }}"
+          grant_type: "password"
+        headers:
+          User-Agent: "Ansible"
+        return_content: yes
+        validate_certs: no
+      register: token_result
+      failed_when: false
+      delegate_to: localhost
+
+    - name: Attempt token from DR if HA failed
+      when: token_result.status not in [200]
+      uri:
+        url: "{{ arcon.hostipDR }}/arconToken"
+        method: POST
+        body_format: form-urlencoded
+        body:
+          username: "{{ arcon.username }}"
+          password: "{{ arcon.password }}"
+          grant_type: "password"
+        headers:
+          User-Agent: "Ansible"
+        return_content: yes
+        validate_certs: no
+      register: token_result_dr
+      failed_when: false
+      delegate_to: localhost
+
+    - name: Set token (HA or DR)
+      set_fact:
+        arcon_token: >-
+          {{
+            (token_result.json.access_token
+            if token_result.status == 200
+            else token_result_dr.json.access_token)
+          }}
+
+    - name: Fail if no token could be obtained
+      fail:
+        msg: "Unable to retrieve token from HA or DR"
+      when: arcon_token is not defined
+
+    - name: Try fetching password from HA
+      uri:
+        url: "{{ arcon.hostipHA }}/api/ServicePassword/GetTargetDevicePassKey"
+        method: POST
+        return_content: yes
+        body_format: json
+        body:
+          - ServerIp: "{{ server_ip }}"
+            ServiceTypeID: "{{ service_type }}"
+            UserName: "{{ username }}"
+            DbInstanceName: ""
+            OpenForHours: "1"
+        headers:
+          Authorization: "Bearer {{ arcon_token }}"
+          Content-Type: "application/json"
+      register: pass_result
+      failed_when: false
+      delegate_to: localhost
+
+    - name: Try fetching password from DR if HA fails
+      when: pass_result.status not in [200]
+      uri:
+        url: "{{ arcon.hostipDR }}/api/ServicePassword/GetTargetDevicePassKey"
+        method: POST
+        return_content: yes
+        body_format: json
+        body:
+          - ServerIp: "{{ server_ip }}"
+            ServiceTypeID: "{{ service_type }}"
+            UserName: "{{ username }}"
+            DbInstanceName: ""
+            OpenForHours: "1"
+        headers:
+          Authorization: "Bearer {{ arcon_token }}"
+          Content-Type: "application/json"
+      register: pass_result_dr
+      failed_when: false
+      delegate_to: localhost
+      
+    - name: Set password (HA or DR)
+      set_fact:
+        device_password: >-
+          {{
+            (
+              pass_result.json.Result[0].Password
+                if pass_result.status == 200
+                else pass_result_dr.json.Result[0].Password
+            )
+          }}
+
+    - name: Display retrieved password
+      debug:
+        msg: "Password retrieved: {{ device_password }}"
