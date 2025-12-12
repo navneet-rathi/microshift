@@ -4,26 +4,20 @@
   gather_facts: no
 
   vars:
-    config_file: "/usr/share/ansible/plugins/lookup/config.json"
+    #config_file: "/usr/share/ansible/plugins/lookup/config.json"
     server_ip: "192.168.1.10"
     service_type: "22"
     username: "root"
 
   tasks:
-
-    - name: Load Arcon configuration
-      include_vars:
-        file: "{{ config_file }}"
-        name: arcon
-
     - name: Attempt token from HA
       uri:
-        url: "{{ arcon.hostipHA }}/arconToken"
+        url: "{{ arcon_hostipHA  }}/arconToken"
         method: POST
         body_format: form-urlencoded
         body:
-          username: "{{ arcon.username }}"
-          password: "{{ arcon.password }}"
+          username: "{{ arcon_username }}"
+          password: "{{ arcon_password }}"
           grant_type: "password"
         headers:
           User-Agent: "Ansible"
@@ -36,12 +30,12 @@
     - name: Attempt token from DR if HA failed
       when: token_result.status not in [200]
       uri:
-        url: "{{ arcon.hostipDR }}/arconToken"
+        url: "{{ arcon_hostipDR }}/arconToken"
         method: POST
         body_format: form-urlencoded
         body:
-          username: "{{ arcon.username }}"
-          password: "{{ arcon.password }}"
+          username: "{{ arcon_username }}"
+          password: "{{ arcon_password }}"
           grant_type: "password"
         headers:
           User-Agent: "Ansible"
@@ -67,7 +61,7 @@
 
     - name: Try fetching password from HA
       uri:
-        url: "{{ arcon.hostipHA }}/api/ServicePassword/GetTargetDevicePassKey"
+        url: "{{ arcon_hostipHA  }}/api/ServicePassword/GetTargetDevicePassKey"
         method: POST
         return_content: yes
         body_format: json
@@ -87,7 +81,7 @@
     - name: Try fetching password from DR if HA fails
       when: pass_result.status not in [200]
       uri:
-        url: "{{ arcon.hostipDR }}/api/ServicePassword/GetTargetDevicePassKey"
+        url: "{{ arcon_hostipDR }}/api/ServicePassword/GetTargetDevicePassKey"
         method: POST
         return_content: yes
         body_format: json
@@ -106,7 +100,7 @@
       
     - name: Set password (HA or DR)
       set_fact:
-        device_password: >-
+        ansible_password: >-
           {{
             (
               pass_result.json.Result[0].Password
@@ -117,4 +111,4 @@
 
     - name: Display retrieved password
       debug:
-        msg: "Password retrieved: {{ device_password }}"
+        msg: "Password retrieved: {{ ansible_password }}"
